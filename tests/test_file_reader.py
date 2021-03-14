@@ -1,6 +1,6 @@
 import unittest
 from xyz import file_reader
-from tests.base_test import BaseTest
+from tests.base_test import BaseTestFileReader
 
 
 class TestFileReader(unittest.TestCase):
@@ -9,7 +9,7 @@ class TestFileReader(unittest.TestCase):
         file_reader.FileReader("example.txt")
 
 
-class TestReading(BaseTest):
+class TestReading(BaseTestFileReader):
 
     def setUp(self) -> None:
         self.fr = file_reader.FileReader(self.get_fixture_path("urls.txt"))

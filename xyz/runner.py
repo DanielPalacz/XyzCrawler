@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # print(r.lpop("P1"))
 
     #
-    downloader = Downloader1(urls)
+    downloader = Downloader(urls)
     downloader.store_all_links_in_cache()
     #
     downloader.print_everything_from_cache()

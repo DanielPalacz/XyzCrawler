@@ -2,7 +2,7 @@ import unittest
 import os
 
 
-class BaseTest(unittest.TestCase):
+class BaseTestFileReader(unittest.TestCase):
 
     ROOT_DIR = os.path.dirname(__file__)
 

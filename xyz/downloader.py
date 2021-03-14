@@ -5,21 +5,22 @@ from bs4 import BeautifulSoup
 
 class Downloader:
 
-    def __init__(self, list_with_urls: set = set()):
+    def __init__(self, list_with_urls: list = list()):
         self.links = {url: 0 for url in list_with_urls}
         self.cache = redis.Redis(host='localhost', port=6379, db=0)
 
-    def __verify_link_correctness(self, url: str) -> str:
+    @staticmethod
+    def __verify_link_correctness(url: str) -> str:
         if url.startswith("www.") or url.startswith("http"):
             pass
         else:
-            print("Incorrect link:", url)
             url = ""
         return url
 
-    def __clean_http_link(self, url: str) -> str:
+    @staticmethod
+    def __clean_http_link(url: str) -> str:
         if url.startswith("//www."):
-            url = url[2:0]
+            url = url[2:]
         if url.endswith("/"):
             url = url[:-1]
         return url
