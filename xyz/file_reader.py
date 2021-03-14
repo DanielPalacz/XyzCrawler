@@ -1,5 +1,3 @@
-import os
-
 
 class FileReader:
     """ ... """
@@ -15,6 +13,4 @@ class FileReader:
 
 
 if __name__ == "__main__":
-    file_reader = FileReader(os.getenv("XyzCrawlerInputPath") + "\\" + "urls.txt")
-    urls = file_reader.readfile()
-    print(urls)
+    pass
