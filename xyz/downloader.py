@@ -6,6 +6,7 @@ from urllib.parse import urlparse, urljoin
 class Downloader:
     SUPPORTED_PROTOCOLS = ["https", "http"]
     SUPPORTED_CONTENT_TYPES = ["text/html"]
+    REDIS_CACHE_LIST = "URL_TEMP_CACHE"
 
     def __init__(self, redis_conn, *, headers: dict = None):
         self.redis_conn = redis_conn
@@ -21,11 +22,12 @@ class Downloader:
         # check if response and response.ok are True
         if response and response.ok:
             content_type = response.headers.get("content-type", "")
-            if content_type in self.SUPPORTED_CONTENT_TYPES:
+
+            if any([1 if elem in content_type else 0 for elem in self.SUPPORTED_CONTENT_TYPES]):
                 urls = self._extract(response.url, response.text)
-                break
+                self._store(urls)
             else:
-                print(f"The url: {url}`s content type: {content_type} is not supported by application. ")
+                print(f"The url: {url}`s content type: ?? {content_type} ?? is not supported by application. ")
         else:
             print("The given url could not be downloaded due to http code:", response.status_code)
 
@@ -42,7 +44,13 @@ class Downloader:
         results = [urljoin(baseurl, link) for link in hrefs]
         return results
 
+    def _store(self, data: list):
+        self.redis_conn.lpush(self.REDIS_CACHE_LIST, *data)
+
 
 if __name__ == "__main__":
-    d = Downloader(None)
-    print(d.download())
+    import redis_connection
+    r = redis_connection.RedisConnection()
+    r_conn = r.get_connection()
+    d = Downloader(r_conn)
+    d.download("https://www.reddit.com")

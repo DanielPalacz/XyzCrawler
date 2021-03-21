@@ -2,7 +2,6 @@ import unittest
 import os
 import testing.redis
 import redis
-import flask
 
 
 class BaseTest(unittest.TestCase):
@@ -31,17 +30,16 @@ class RedisMixin:
 
     @classmethod
     def setup_redis(cls) -> None:
-        print("Staring redis server (RedisMixin.setupRedis).")
         cls.redis_server = testing.redis.RedisServer()
-        print("Creating redis connection pool (RedisMixin.setupRedis).")
+        print("[log]: Redis server started (RedisMixin.setupRedis) with the following params:", cls.redis_server.dsn())
         cls.redis_pool = redis.ConnectionPool(**cls.redis_server.dsn(), max_connections=10)
+        print("[log]: Creating redis connection pool (RedisMixin.setupRedis).")
 
     @classmethod
     def stop_redis(cls) -> None:
         cls.redis_server.stop()
-        print("Stopping redis server (RedisMixin.stopRedis).")
+        print("[log]: Stopping redis server (RedisMixin.stopRedis).")
 
     @classmethod
     def get_redis_connection(cls):
         return redis.StrictRedis(connection_pool=cls.redis_pool)
-
