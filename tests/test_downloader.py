@@ -1,51 +1,61 @@
 import unittest
 from xyz import downloader
-from tests.fixtures.static_data import LINKS
+from tests.base_test import BaseTest, RedisMixin
+from tests.fixtures.static_data import LINKS, LOCAL_HTTP_SERVER
+import requests
+import requests_mock
 
 
-class TestDownloaderInit(unittest.TestCase):
+class TestDownloaderInit(BaseTest, RedisMixin):
 
-    def test_empty(self):
-        downloader.Downloader()
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setup_redis()
 
-    def test_parametrized(self):
-        downloader.Downloader(LINKS)
-
-
-class TestDownloader(unittest.TestCase):
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().stop_redis()
 
     def setUp(self) -> None:
-        self.downloader = downloader.Downloader(LINKS)
+        redis_connection = super().get_redis_connection()
+        self.downloader = downloader.Downloader(redis_connection)
 
-    def test___verify_link_correctness(self):
-        tested_links = ["https://wikipedia.org", "www.wp.pl", "ahojajo"]
-        expected_links = ["https://wikipedia.org", "www.wp.pl", ""]
-        for i, tested_link in enumerate(tested_links):
-            with self.subTest(tested_link):
-                verified_link = self.downloader._Downloader__verify_link_correctness(tested_link)
-                expected_link_value = tested_link
-                self.assertEqual(verified_link, expected_links[i], "Link verification did not work correctly.")
+    def tearDown(self):
+        del self.downloader
 
-    def test___clean_http_link(self):
-        tested_links = ["https://wikipedia.org/", "//www.wp.pl", "https://www.reddit.com"]
-        expected_links = ["https://wikipedia.org", "www.wp.pl", "https://www.reddit.com"]
-        for i, tested_link in enumerate(tested_links):
-            with self.subTest(tested_link):
-                cleaned_link = self.downloader._Downloader__clean_http_link(tested_link)
-                self.assertEqual(cleaned_link, expected_links[i], "Link cleaning did not work correctly.")
+    def test_session_defaults(self):
+        d = self.downloader
+        self.assertIn("python-requests", d.session.headers["User-agent"], "User-agent Header value was not correct.")
 
-    def test___get_inherited_links(self):
-        tested_link = "https://jsonplaceholder.typicode.com/guide/"
-        expected_values = ["https://dev.to/typicode/what-s-new-in-husky-5-32g5",
-                           "https://github.com/sponsors/typicode",
-                           "https://blog.typicode.com",
-                           "https://my-json-server.typicode.com",
-                           "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
-                           "https://github.com/users/typicode/sponsorship",
-                           "https://github.com/typicode"]
+    def test_session_headers(self):
+        d = downloader.Downloader(None, headers={"User-agent": "MyDownloader"})
+        self.assertEqual(d.session.headers["User-agent"], "MyDownloader", "User-agent Header value was not correct.")
 
-        inherited_links = self.downloader._Downloader__get_inherited_links(tested_link)
-        for expected_link in expected_values:
-            with self.subTest(expected_link):
-                self.assertTrue(expected_link in inherited_links, "Expected link was not found.")
-        self.assertEqual(len(inherited_links), len(expected_values), "Number of inherited links is not correct.")
+
+class TestDownloaderOperations(BaseTest):
+
+    def setUp(self) -> None:
+        self.downloader = downloader.Downloader(None)
+
+    def tearDown(self):
+        del self.downloader
+
+    def test__fetch(self):
+        with requests_mock.Mocker() as m:
+            m.get("http://test.com", text="mocked test.com website")
+            self.assertIsInstance(
+                self.downloader._fetch("http://test.com"), requests.Response, "Incorrect object type returned.")
+            self.assertIsNone(
+                self.downloader._fetch("incorrect_url"), "Loading url failure was not handled correctly.")
+
+    def test__extract(self):
+        expected_links = [
+            'http://test.com', 'http://test.com#top', 'http://test.com/subdir', "https://my-json-server.typicode.com",
+            'https://pypi.org/project/requests-mock/', 'http://test.com/tmp', 'http://otherlink']
+
+        with open(self.get_fixture_path("localtest.html")) as localhtml:
+            extracted_links = self.downloader._extract("http://test.com", localhtml.read())
+            for extracted_link in extracted_links:
+                with self.subTest(extracted_link):
+                    self.assertTrue(extracted_link in expected_links, "Expected link was not found.")
+                self.assertEqual(len(extracted_links), len(expected_links), "Number of extracted links isn`t correct.")

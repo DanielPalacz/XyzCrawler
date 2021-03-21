@@ -1,6 +1,6 @@
 import unittest
 from xyz import file_reader
-from tests.base_test import BaseTestFileReader
+from tests.base_test import BaseTest
 
 
 class TestFileReader(unittest.TestCase):
@@ -9,7 +9,7 @@ class TestFileReader(unittest.TestCase):
         file_reader.FileReader("example.txt")
 
 
-class TestReading(BaseTestFileReader):
+class TestReading(BaseTest):
 
     def setUp(self) -> None:
         self.fr = file_reader.FileReader(self.get_fixture_path("urls.txt"))
@@ -21,12 +21,3 @@ class TestReading(BaseTestFileReader):
         urls = self.fr.readfile()
         self.assertEqual(len(urls), 5, "There are not 4 links")
         self.assertTrue(all([u.startswith("http") for u in urls]))
-
-
-
-
-# self jest slownikiem !!!
-#
-
-# negatywne
-# --
