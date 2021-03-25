@@ -6,6 +6,12 @@ import redis
 import requests
 import requests_mock
 
+import signal
+import time
+
+import testtools
+from requests_mock.contrib import fixture
+
 
 class TestDownloaderInit(BaseTest, RedisMixin):
 
@@ -16,7 +22,6 @@ class TestDownloaderInit(BaseTest, RedisMixin):
     @classmethod
     def tearDownClass(cls) -> None:
         super().stop_redis()
-        print()
 
     def setUp(self):
         redis_connection = super().get_redis_connection()
@@ -37,10 +42,6 @@ class TestDownloaderInit(BaseTest, RedisMixin):
 
 
 class TestDownloaderOperations(BaseTest):
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        print()
 
     def setUp(self):
         self.downloader = downloader.Downloader(None)
@@ -63,13 +64,11 @@ class TestDownloaderOperations(BaseTest):
 
         with open(self.get_fixture_path("localtest.html")) as localhtml:
             extracted_links = self.downloader._extract("http://test.com", localhtml.read())
-            for extracted_link in extracted_links:
-                with self.subTest(extracted_link):
-                    self.assertTrue(extracted_link in expected_links, "Expected link was not found.")
-                self.assertEqual(len(extracted_links), len(expected_links), "Number of extracted links isn`t correct.")
+            self.assertEqual(sorted(extracted_links), sorted(expected_links), "Extracted links aren`t correct.")
 
 
-class TestDownloaderRedis(BaseTest, RedisMixin):
+class TestFull(BaseTest, RedisMixin):
+    # class TestFull(testtools.TestCase, BaseTest, RedisMixin):
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -78,25 +77,27 @@ class TestDownloaderRedis(BaseTest, RedisMixin):
     @classmethod
     def tearDownClass(cls) -> None:
         super().stop_redis()
-        print()
 
     def setUp(self):
+        # super(TestFull, self).setUp()
         redis_connection = super().get_redis_connection()
         self.downloader = downloader.Downloader(redis_connection)
+        # self.requests_mock = self.useFixture(fixture.Fixture())
+        # self.requests_mock.register_uri('GET', self.TEST_URL, text='respA')
 
     def tearDown(self):
-        del self.downloader
+        # super(TestFull, self).tearDown()
+        self.downloader.redis_conn.delete(self.downloader.DOWNLOAD_QUEUE)
 
-    def test__store(self):
-        self.downloader.REDIS_CACHE_LIST = "TESTS_URL_TEMP_CACHE"
+    def test__enqueue_urls(self):
         data = ["a", "b", "c"]
-        self.downloader._store(data)
+        self.downloader._enqueue_urls(data)
         for elem in data[-1::-1]:
             with self.subTest(elem):
-                popped_elem = self.downloader.redis_conn.lpop(self.downloader.REDIS_CACHE_LIST).decode("utf-8")
+                popped_elem = self.downloader.redis_conn.lpop(self.downloader.DOWNLOAD_QUEUE).decode("utf-8")
                 self.assertEqual(popped_elem, elem, "Incorrect element was stored.")
 
-    def test_download(self):
+    def test__download(self):
         expected_links = [
             'http://test.com/', 'http://test.com/#top', 'http://test.com/subdir', "https://my-json-server.typicode.com",
             'https://pypi.org/project/requests-mock/', 'http://test.com/tmp', 'http://otherlink']
@@ -106,12 +107,40 @@ class TestDownloaderRedis(BaseTest, RedisMixin):
                 url = "http://test.com/"
                 m.register_uri("GET", url=url, text=localhtml.read(), headers={"content-type": "text/html"})
 
-                self.downloader.download(url)
-                popped_numbers = 0
-                while elem := self.downloader.redis_conn.lpop(self.downloader.REDIS_CACHE_LIST):
+                self.downloader._download(url)
+                err = "Incorrect number of links were collected"
+                self.assertEqual(
+                    self.downloader.redis_conn.llen(self.downloader.DOWNLOAD_QUEUE), len(expected_links), err)
+
+                while elem := self.downloader.redis_conn.lpop(self.downloader.DOWNLOAD_QUEUE):
                     popped_elem = elem.decode("utf-8")
-                    popped_numbers += 1
                     with self.subTest(popped_elem):
                         self.assertTrue(popped_elem in expected_links, "The link taken from Redis was not expected")
-                else:
-                    self.assertTrue(popped_numbers == len(expected_links), "Incorrect number of links were collected")
+
+    def test_run(self):
+
+        def set_stop_flag(signum, frame):
+            self.downloader.STOP_FLAG = True
+
+        expected_links = ['http://test.com/', 'http://test.com/#top']
+
+        with requests_mock.Mocker() as m:
+            with open(self.get_fixture_path("limitedhtml")) as limitedhtml:
+                url = "http://test.com/"
+                urls = [url]
+
+                import re
+                matcher = re.compile(url)
+                # main url = "http://test.com/" as matcher:
+                m.register_uri("GET", url=matcher, text=limitedhtml.read(), headers={"content-type": "text/html"})
+
+                # Register the alarm signal with our handler
+                signal.signal(signal.SIGALRM, set_stop_flag)
+                # Set the alarm after 1 second -> self.downloader.STOP_FLAG = True
+                signal.alarm(1)
+                self.downloader.run(urls)
+
+                while stored_url_bin := self.downloader.redis_conn.lpop(self.downloader.DOWNLOAD_QUEUE):
+                    stored_url = stored_url_bin.decode("utf-8")
+                    err = "Incorrect link was extracted."
+                    self.assertTrue(stored_url in expected_links, err)

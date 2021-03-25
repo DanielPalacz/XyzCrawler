@@ -18,7 +18,7 @@ class BaseTest(unittest.TestCase):
     #     if cls.ENABLE_REDIS:
     #         cls.redis_server = testing.redis.RedisServer()
     #         print("Staring redis server (BaseTest with RedisMixin inside: BaseTest.setUpClass).")
-    #
+
     # @classmethod
     # def tearDownClass(cls) -> None:
     #     if cls.ENABLE_REDIS:
