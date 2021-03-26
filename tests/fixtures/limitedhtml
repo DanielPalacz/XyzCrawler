@@ -14,5 +14,10 @@
 		<div>
 		Anchor: <a href="#top">TOP</a>
 		</div>
+	    <p>
+		<div>
+		Link: <a href="http://example.com">SUBDIR</a>
+		</div>
+		</p>
 	</body>
 </html>

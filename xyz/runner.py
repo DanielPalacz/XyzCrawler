@@ -10,13 +10,15 @@ import logging
 
 
 if __name__ == "__main__":
+    # logging basicConfig
+
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     filelogname = "LogSession_" + str(date.today().strftime("%Y%m%d"))
     filelogname += "_" + str(datetime.now().hour) + str(datetime.now().minute) + ".log"
     # create file handler which logs even debug messages
     fh = logging.FileHandler(filelogname)
-    fh.setLevel(logging.INFO)
+    fh.setLevel(logging.DEBUG)
     # create formatter and add it to the handler
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
@@ -30,4 +32,4 @@ if __name__ == "__main__":
     r_conn = redis.StrictRedis(connection_pool=r_pool)
 
     d = Downloader(r_conn)
-    d.run(urls)
+    d.run(list(urls))

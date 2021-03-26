@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin
+
+import logging
 
 
 class Downloader:
@@ -14,14 +16,16 @@ class Downloader:
         headers = headers if headers is not None else {}
         self.session = requests.Session()
         self.session.headers.update(headers)
+        s_headers = self.session.headers
+        self.logger = logging.getLogger()
+        redis_params = str(self.redis_conn.connection_pool.connection_kwargs)
+        self.logger.debug("Downloader object was initiated (redis: %s, session headers: %s)", redis_params, s_headers)
 
     def _download(self, url):
-        # 1.
-        # get requests`s response object
+        self.logger.debug("Get requests`s response object for url: %s", url)
         response = self._fetch(url)
         # print(response, response.url, response.headers, response.elapsed, response.status_code, response.is_redirect)
-        # 2.
-        # check if response and response.ok are True
+
         if response and response.ok:
             content_type = response.headers.get("content-type", "")
 
@@ -29,11 +33,12 @@ class Downloader:
                 urls = self._extract(response.url, response.text)
                 self._enqueue_urls(urls)
             else:
-                print(f"The url: {url}`s content type: ?? {content_type} ?? is not supported by application. ")
+                self.logger.debug("The url: '%s' has content type: %s which is not supported", url, content_type)
         else:
-            print("The given url could not be downloaded due to http code:", response.status_code)
+            self.logger.debug("The given url could not be downloaded due to http code: %s", response.status_code)
 
     def _fetch(self, url):
+        self.logger.info(f"Fetching the given url: {url}")
         try:
             return self.session.get(url, allow_redirects=True)
         except requests.RequestException as e:
@@ -44,26 +49,31 @@ class Downloader:
         links = soup.find_all("a")
         hrefs = [link.get("href") for link in links]
         results = [urljoin(baseurl, link) for link in hrefs]
-        print(results)
+        self.logger.debug("Extracting links from the given url: %s", baseurl)
         return results
 
     def _enqueue_urls(self, urls: list):
         if urls:
+            url_len = len(urls)
             self.redis_conn.lpush(self.DOWNLOAD_QUEUE, *urls)
+            self.logger.info("Enqueue to Redis (newly extracted %d urls)", url_len)
 
-    def run(self, urls: list):
+    def run(self, urls: list = None):
+        urls = urls if urls is not None else []
+        self.logger.info("Downloader was started (initially with %s)", urls)
         for url in urls:
             self._download(url)
         while not self.STOP_FLAG:
             result = self.redis_conn.brpop(self.DOWNLOAD_QUEUE, timeout=1)
             if result:
-                queue_name, url = result
-                self._download(url.decode("utf-8"))
+                q, url = result
+                self.logger.debug("Previously extracted url was loaded from Redis queue (url: %s)", url.decode())
+                self._download(url.decode())
+                self.logger.debug("Url: %s", url.decode())
+                self.logger.debug("Previously extracted url was parsed for new url links (url: %s)", url.decode())
 
 
 if __name__ == "__main__":
-    import redis_connection
-    r = redis_connection.RedisConnection()
-    r_conn = r.get_connection()
-    d = Downloader(r_conn)
-    d.download("https://www.reddit.com")
+    # to learn:
+    # -- import typing ... sequence
+    pass

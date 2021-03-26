@@ -1,16 +1,12 @@
 import unittest
 from xyz import downloader
-from tests.base_test import BaseTest, RedisMixin
+from tests.base_test import BaseTest, RedisMixin, WebAppTest
 
 import redis
 import requests
 import requests_mock
 
 import signal
-import time
-
-import testtools
-from requests_mock.contrib import fixture
 
 
 class TestDownloaderInit(BaseTest, RedisMixin):
@@ -122,18 +118,16 @@ class TestFull(BaseTest, RedisMixin):
         def set_stop_flag(signum, frame):
             self.downloader.STOP_FLAG = True
 
-        expected_links = ['http://test.com/', 'http://test.com/#top']
+        expected_links = ['http://test.com/', 'http://test.com/#top', 'http://test.com/subdir']
 
         with requests_mock.Mocker() as m:
+            import re
+            matcher = re.compile(url)
+
             with open(self.get_fixture_path("limitedhtml")) as limitedhtml:
                 url = "http://test.com/"
                 urls = [url]
-
-                import re
-                matcher = re.compile(url)
-                # main url = "http://test.com/" as matcher:
                 m.register_uri("GET", url=matcher, text=limitedhtml.read(), headers={"content-type": "text/html"})
-
                 # Register the alarm signal with our handler
                 signal.signal(signal.SIGALRM, set_stop_flag)
                 # Set the alarm after 1 second -> self.downloader.STOP_FLAG = True
@@ -142,5 +136,38 @@ class TestFull(BaseTest, RedisMixin):
 
                 while stored_url_bin := self.downloader.redis_conn.lpop(self.downloader.DOWNLOAD_QUEUE):
                     stored_url = stored_url_bin.decode("utf-8")
-                    err = "Incorrect link was extracted."
+                    err = f"Incorrect link was extracted: {stored_url}"
                     self.assertTrue(stored_url in expected_links, err)
+
+    def test_runner(self):
+
+        def set_stop_flag(signum, frame):
+            self.downloader.STOP_FLAG = True
+
+        # Register the alarm signal with our handler
+        signal.signal(signal.SIGALRM, set_stop_flag)
+
+        with requests_mock.Mocker() as m:
+            url_A = "http://test/A"
+            url_B = "http://test/B"
+            content_A = self.get_fixture_text("A.html")
+            m.register_uri("GET", url=url_A, text=content_A, headers={"content-type": "text/html"})
+            m.register_uri("GET", url=url_B, text="B_HTML", headers={"content-type": "text/html"})
+
+            # Set the alarm after 1 second -> self.downloader.STOP_FLAG = True
+            signal.alarm(1)
+            self.downloader.run([url_A])
+
+            self.assertEqual(m.call_count, 2)
+            self.assertEqual(self.downloader.redis_conn.llen(self.downloader.DOWNLOAD_QUEUE), 0)
+
+
+class TestFullWithWebApp(WebAppTest):
+
+    def test_runner_with_webapp(self):
+        url = "http://127.0.0.1:5678/A"
+        # self.downloader.redis_conn.lpush(self.downloader.DOWNLOAD_QUEUE, url)
+        self.downloader._enqueue_urls([url])
+        signal.alarm(1)
+        self.downloader.run()
+        self.assertEqual(self.downloader.redis_conn.llen(self.downloader.DOWNLOAD_QUEUE), 0)
