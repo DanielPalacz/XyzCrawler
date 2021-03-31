@@ -1,6 +1,6 @@
 import unittest
 from xyz import file_reader
-from tests.base_test import BaseTest
+from xyz.testing.base import BaseTest
 
 
 class TestFileReader(unittest.TestCase):

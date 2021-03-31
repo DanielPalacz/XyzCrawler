@@ -16,10 +16,8 @@ class Downloader:
         headers = headers if headers is not None else {}
         self.session = requests.Session()
         self.session.headers.update(headers)
-        s_headers = self.session.headers
         self.logger = logging.getLogger()
-        redis_params = str(self.redis_conn.connection_pool.connection_kwargs)
-        self.logger.debug("Downloader object was initiated (redis: %s, session headers: %s)", redis_params, s_headers)
+        self.logger.debug("Downloader object was initiated.")
 
     def _download(self, url):
         self.logger.debug("Get requests`s response object for url: %s", url)

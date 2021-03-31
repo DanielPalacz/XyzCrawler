@@ -1,27 +1,22 @@
 import flask
 
-# app = flask.Flask(__name__)
+app = flask.Flask(__name__)
+
+# adding routing
 
 
-def create_app(**kwargs):
-    app = flask.Flask(__name__)
-    app.config.update(kwargs)
-
-    app.route("/", methods=["GET"])(index)
-    app.route("/A", methods=["GET"])(view_a)
-    app.route("/B", methods=["GET"])(view_b)
-    return app
-
-
+@app.route("/", methods=["GET"])
 def index():
     #response = flask.Response('{"helloWorld": 1}', content_type="application/json")
     return str(17)
 
 
+@app.route("/A", methods=["GET"])
 def view_a():
     return '<a href="/B">B</a>'
 
 
+@app.route("/B", methods=["GET"])
 def view_b():
     return 'endpoint_B'
 
@@ -33,6 +28,4 @@ def view_b():
 
 
 if __name__ == "__main__":
-    test_app = create_app()
-    test_app.run(debug=True, use_reloader=True, port=5678)
-    # app.run(debug=True, use_reloader=True, port=5678)
+    app.run(debug=True, use_reloader=True, port=5678)

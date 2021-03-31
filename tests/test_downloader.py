@@ -1,19 +1,20 @@
 import unittest
 from xyz import downloader
-from tests.base_test import BaseTest, RedisMixin, WebAppTest
+from xyz.testing.base import BaseTest, RedisMixin, WebAppTest
 
 import redis
 import requests
 import requests_mock
 
 import signal
+import re
 
 
 class TestDownloaderInit(BaseTest, RedisMixin):
 
     @classmethod
     def setUpClass(cls) -> None:
-        super().setup_redis()
+        super().start_redis()
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -68,7 +69,7 @@ class TestFull(BaseTest, RedisMixin):
 
     @classmethod
     def setUpClass(cls) -> None:
-        super().setup_redis()
+        super().start_redis()
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -118,16 +119,15 @@ class TestFull(BaseTest, RedisMixin):
         def set_stop_flag(signum, frame):
             self.downloader.STOP_FLAG = True
 
-        expected_links = ['http://test.com/', 'http://test.com/#top', 'http://test.com/subdir']
+        expected_links = ['http://test.com/', 'http://test.com/#top', 'http://test.com/subdir', 'http://example.com']
 
         with requests_mock.Mocker() as m:
-            import re
-            matcher = re.compile(url)
-
             with open(self.get_fixture_path("limitedhtml")) as limitedhtml:
                 url = "http://test.com/"
+                matcher = re.compile(url)
                 urls = [url]
                 m.register_uri("GET", url=matcher, text=limitedhtml.read(), headers={"content-type": "text/html"})
+                m.register_uri("GET", url='http://example.com', text='empty', headers={"content-type": "text/html"})
                 # Register the alarm signal with our handler
                 signal.signal(signal.SIGALRM, set_stop_flag)
                 # Set the alarm after 1 second -> self.downloader.STOP_FLAG = True
