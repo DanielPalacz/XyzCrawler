@@ -3,19 +3,42 @@ from xyz.testing.flask import FlaskServer
 
 import unittest
 import os
+import sys
 import testing.redis
 import redis
 import signal
 import logging
 
 
-class BaseTest(unittest.TestCase):
+# logging.basicConfig(
+#     # filename='example.log',
+#     encoding='utf-8',
+#     level=logging.DEBUG if int(os.environ.get("DEBUG", 0)) else logging.INFO
+# )
 
+class Loggable:
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(levelname)s %(asctime)s "
+                "%(name)24s.%(funcName)-32s %(filename)s:%(lineno)s %(message)s")
+        )
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
+        self.logger.info("Initialized")
+
+
+class BaseTest(unittest.TestCase, Loggable):
     # ENABLE_REDIS = False
     # ENABLE_SQLDB = False
     ROOT_DIR = os.path.dirname(__file__)
-    # logger = logging.getLogger()
-    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        Loggable.__init__(self)
 
     def get_fixture_path(self, filename):
         return os.path.join(self.ROOT_DIR, "../../tests/fixtures", filename)
@@ -37,7 +60,7 @@ class BaseTest(unittest.TestCase):
     #         print("Stopping redis server (BaseTest with RedisMixin inside: BaseTest.tearDownClass).")
 
 
-class RedisMixin:
+class RedisMixin(Loggable):
 
     @classmethod
     def start_redis(cls) -> None:
@@ -56,10 +79,7 @@ class RedisMixin:
         return redis.StrictRedis(connection_pool=cls.redis_pool)
 
 
-
-
-class FlaskMixin:
-
+class FlaskMixin(Loggable):
     @classmethod
     def start_flask(cls, *args, **kwargs):
         cls.flask_server = FlaskServer(*args, **kwargs)
@@ -67,9 +87,6 @@ class FlaskMixin:
     @classmethod
     def stop_flask(cls):
         cls.flask_server.stop()
-
-
-
 
 
 class WebAppTest(BaseTest, RedisMixin):
